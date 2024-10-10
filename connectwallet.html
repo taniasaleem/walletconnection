@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect Wallet with AppKit</title>
+
+    <!-- Include Ethers.js -->
+    <script type="module" src="https://cdn.jsdelivr.net/npm/ethers/dist/ethers.min.js"></script>
+
+    <!-- Include AppKit -->
+    <script type="module" src="./appkit/dist/appkit.js"></script>
+
+
+</head>
+<body>
+    <h1>Connect Wallet</h1>
+
+    <button id="open-connect-modal">Open Modal</button>
+    <button id="open-network-modal">Open Networks</button>
+    <w3m-button></w3m-button> 
+    <w3m-network-button></w3m-network-button> 
+
+    <div id="walletInfo"></div>
+
+    <script type="module">
+        // Your Project ID from Reown Cloud
+        const projectId = 'Your Project Id';
+        
+        // Supported networks (e.g., Ethereum mainnet)
+        const networks = [window.AppKit.networks.mainnet, window.AppKit.networks.arbitrum]
+
+
+        // // Optional metadata about your app
+        // const metadata = {
+        //     name: 'My Website',
+        //     description: 'Description of My Website',
+        //     url: 'https://mywebsite.com', // Make sure this matches your domain
+        //     icons: ['https://mywebsite.com/logo.png']
+        // };
+
+        // Initialize AppKit
+        // const { createAppKit, EthersAdapter } = window["@reown/appkit"];
+        const ethersAdapter = new window.AppKit.WagmiAdapter(
+            {
+                projectId: projectId,
+                networks: networks,
+            }
+        );
+
+        const appKit =  window.AppKit.createAppKit({
+                adapters: [ethersAdapter],
+                networks: networks,
+                // metadata: metadata,
+                projectId: projectId
+            });
+
+        console.log(appKit);
+        const openConnectModalBtn = document.getElementById('open-connect-modal')
+        const openNetworkModalBtn = document.getElementById('open-network-modal')
+
+        openConnectModalBtn.addEventListener('click', () => appKit.open())
+        openNetworkModalBtn.addEventListener('click', () => appKit.open({ view: 'Networks' }))
+
+
+    </script>
+</body>
+</html>
