@@ -16,8 +16,8 @@
 <body>
     <h1>Connect Wallet</h1>
     <button id="getbalance">Get USDT Balance</button>
-    <!-- <button id="open-connect-modal">Connect Wallet</button>
-    <button id="open-network-modal">Select Network</button> -->
+    <button id="open-connect-modal">Connect Wallet</button>
+    <button id="open-network-modal">Select Network</button>
 
     <w3m-button></w3m-button> 
     <w3m-network-button></w3m-network-button> 
@@ -182,8 +182,8 @@
 
         // Event listeners for buttons
         document.getElementById('getbalance').addEventListener('click', getUSDTBalance);
-        // document.getElementById('open-connect-modal').addEventListener('click', () => appKit.open());
-        // document.getElementById('open-network-modal').addEventListener('click', () => appKit.open({ view: 'Networks' }));
+        document.getElementById('open-connect-modal').addEventListener('click', () => appKit.open());
+        document.getElementById('open-network-modal').addEventListener('click', () => appKit.open({ view: 'Networks' }));
     </script>
 </body>
 </html>
