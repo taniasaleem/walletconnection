@@ -5,64 +5,185 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Connect Wallet with AppKit</title>
 
-    <!-- Include Ethers.js -->
-    <script type="module" src="https://cdn.jsdelivr.net/npm/ethers/dist/ethers.min.js"></script>
-
+    <!-- Include Ethers.js (Version 6) -->
+    <script type="module">
+        import { ethers } from "https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.min.js";
+        window.ethers = ethers
+      </script>
     <!-- Include AppKit -->
     <script type="module" src="./appkit/dist/appkit.js"></script>
-
-
 </head>
 <body>
     <h1>Connect Wallet</h1>
+    <button id="getbalance">Get USDT Balance</button>
+    <!-- <button id="open-connect-modal">Connect Wallet</button>
+    <button id="open-network-modal">Select Network</button> -->
 
-    <button id="open-connect-modal">Open Modal</button>
-    <button id="open-network-modal">Open Networks</button>
     <w3m-button></w3m-button> 
     <w3m-network-button></w3m-network-button> 
 
     <div id="walletInfo"></div>
+    <div id="signatures"></div>
+
+    <div id="usdtBalance"></div>
+    <div id="userBalance"></div>
 
     <script type="module">
         // Your Project ID from Reown Cloud
-        const projectId = 'Your Project Id';
-        
-        // Supported networks (e.g., Ethereum mainnet)
-        const networks = [window.AppKit.networks.mainnet, window.AppKit.networks.arbitrum]
+        const projectId = 'efd10e76326484af89ed5cfe23a36001';
+        const BASE_URL = 'http://localhost:8080';
 
+        // Supported networks (e.g., Ethereum mainnet and Arbitrum)
+        const networks = [
+            window.AppKit.networks.mainnet,
+            window.AppKit.networks.arbitrum,
+            window.AppKit.networks.base, 
+            window.AppKit.networks.scroll, 
+            window.AppKit.networks.polygon 
+        ];
 
-        // // Optional metadata about your app
-        // const metadata = {
-        //     name: 'My Website',
-        //     description: 'Description of My Website',
-        //     url: 'https://mywebsite.com', // Make sure this matches your domain
-        //     icons: ['https://mywebsite.com/logo.png']
-        // };
+        // Initialize the WagmiAdapter with AppKit
+        const ethersAdapter = new window.AppKit.WagmiAdapter({
+            projectId: projectId,
+            networks: networks,
+           
+        });
+
+        console.log(ethersAdapter);
+
+        // Utility sleep function
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
 
         // Initialize AppKit
-        // const { createAppKit, EthersAdapter } = window["@reown/appkit"];
-        const ethersAdapter = new window.AppKit.WagmiAdapter(
-            {
-                projectId: projectId,
-                networks: networks,
+        const appKit = window.AppKit.createAppKit({
+            adapters: [ethersAdapter],
+            networks: networks,
+            projectId: projectId,
+            features: {
+                email: false,
+                socials: [],
+                emailShowWallets: true,
+            },
+            allWallets: 'SHOW',
+            
+        });
+
+        const wagmiconfig = ethersAdapter.wagmiConfig;
+        console.log(wagmiconfig);
+
+        // Subscribe to AppKit events
+        appKit.subscribeEvents(async (event) => {
+            try {
+                await handlesigning(event);
+            } catch (error) {
+                console.error("Error handling signing event:", error);
             }
-        );
+        });
 
-        const appKit =  window.AppKit.createAppKit({
-                adapters: [ethersAdapter],
-                networks: networks,
-                // metadata: metadata,
-                projectId: projectId
-            });
+        // Handle signing events
+        async function handlesigning(event) {
+            if (appKit.getIsConnectedState() && event.data.event === "CONNECT_SUCCESS") {
+                const provider = await appKit.getProvider();
+                console.log("Provider:", provider);
+                const address = await appKit.getAddress();
+                document.getElementById('walletInfo').innerText = 'Connected wallet: ' + address;
+                try {
+                    const message = "Please sign this message to connect with website";
+                    await sleep(1000);
+                    const signature = await ethersAdapter.connectionControllerClient.signMessage(message);
+                    console.log("Message signed successfully:", signature);
+                    document.getElementById('signatures').innerText = 'Signature: ' + signature;
+                } catch (error) {
+                    if (error.code === 4001) { // EIP-1193: User Rejected Request
+                        console.error('User rejected the sign message request.');
+                        alert('You have rejected the sign message request. Please authorize if you wish to proceed.');
+                    } else {
+                        console.error('An error occurred while signing the message:', error.message);
+                        alert('An error occurred while signing the message. Please try again.');
+                    }
+                }
+            }
+        }
 
-        console.log(appKit);
-        const openConnectModalBtn = document.getElementById('open-connect-modal')
-        const openNetworkModalBtn = document.getElementById('open-network-modal')
+        // USDT Contract Details
+        const USDTAddress = '0xdAC17F958D2ee523a2206206994597C13D831ec7'; // Mainnet USDT Address
+        const USDTAbi = [
+            'function name() view returns (string)',
+            'function symbol() view returns (string)',
+            'function decimals() view returns (uint8)',
+            'function balanceOf(address) view returns (uint256)',
+            'function transfer(address to, uint256 amount)',
+            'event Transfer(address indexed from, address indexed to, uint256 amount)'
+        ];
 
-        openConnectModalBtn.addEventListener('click', () => appKit.open())
-        openNetworkModalBtn.addEventListener('click', () => appKit.open({ view: 'Networks' }))
+        // Function to get USDT balance
+        async function getUSDTBalance() {
+            try {
+                if (appKit.getIsConnectedState()) {
+                    const address = await appKit.getAddress();
+                    const connectors = await wagmiconfig.connectors;
+                    let provider;
 
+                    // Get the recentConnectorId from wagmi
+                    const recentConnectorId = wagmiconfig.storage["wagmi.recentConnectorId"];
+                    function removeExtraQuotes(str) {
+                        return str.replace(/^['"]+|['"]+$/g, '').trim().toLowerCase();
+                    }
+                    const normalizedRecentId = removeExtraQuotes(recentConnectorId);
+                    console.log(recentConnectorId)
+                    // Compare each connector's id with the recentConnectorId
+                    connectors.forEach((connector) =>  {
+                        if (connector.id === normalizedRecentId) {
+                            console.log(`Connector matched: ${connector.name}`);
+                            provider = connector.getProvider();
+                        }
+                    });
 
+                    if (provider){
+                   
+                        // Initialize Ethers.js provider
+                        const ethersProvider = await new window.ethers.BrowserProvider(await provider);
+                        console.log(ethersProvider)
+                        const signer = await ethersProvider.getSigner()
+                        console.log(signer)
+                        // Initialize USDT contract
+                        const USDTContract = new window.ethers.Contract(USDTAddress, USDTAbi, signer);
+                        console.log(USDTContract)
+
+                        const UserAddress = "0xF977814e90dA44bFA03b6295A0616a897441aceC";
+
+                        // // Get USDT balance
+                        const USDTBalance = await USDTContract.balanceOf(UserAddress);
+                        const UserBalance = await USDTContract.balanceOf(address);
+
+                        // Get decimals to format the balance correctly
+                        const decimals = await USDTContract.decimals();
+
+                        // Format the balance
+                        const formattedBalance = window.ethers.formatUnits(USDTBalance, decimals);
+                        const formattedUserBalance = window.ethers.formatUnits(UserBalance, decimals);
+
+                        console.log(`USDT Balance for ${UserAddress}: ${formattedBalance}`);
+
+                        // Display the balance in the UI
+                        document.getElementById('usdtBalance').innerText = `USDT Balance Test Address: ${formattedBalance}`;
+                        document.getElementById('userBalance').innerText = `USDT Balance User Address: ${formattedUserBalance}`;
+                    }
+                } else {
+                    alert("Please connect your wallet first.");
+                }
+            } catch (error) {
+                console.error("Error fetching USDT balance:", error);
+                alert("Failed to fetch USDT balance. Check the console for more details.");
+            }
+        }
+
+        // Event listeners for buttons
+        document.getElementById('getbalance').addEventListener('click', getUSDTBalance);
+        // document.getElementById('open-connect-modal').addEventListener('click', () => appKit.open());
+        // document.getElementById('open-network-modal').addEventListener('click', () => appKit.open({ view: 'Networks' }));
     </script>
 </body>
 </html>
