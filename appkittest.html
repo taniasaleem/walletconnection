@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect Wallet with AppKit</title>
+
+    <!-- Include Ethers.js (Version 6) -->
+    <script type="module">
+        import { ethers } from "https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.min.js";
+        window.ethers = ethers;
+    </script>
+
+    <!-- Include AppKit -->
+    <script  src="./appkit/dist/appkit.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .wallet {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .wallet h3 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Connect Wallet</h1>
+    <button id="connect-wallet">Connect Wallet</button>
+    <!-- <button id="add-wallet">Disconnect</button> -->
+
+    <div id="walletsContainer"></div>
+    <div id="usdtBalance"></div>
+    <div id="signatures"></div>
+
+    <script >
+        // Your Project ID from Reown Cloud
+        const projectId = 'efd10e76326484af89ed5cfe23a36001';
+        const BASE_URL = 'http://localhost:8080';
+
+        // Supported networks (e.g., Ethereum mainnet and Arbitrum)
+        const networks = [
+            window.AppKit.networks.mainnet,
+            window.AppKit.networks.arbitrum,
+            window.AppKit.networks.base, 
+            window.AppKit.networks.scroll, 
+            window.AppKit.networks.polygon 
+        ];
+
+        // Initialize the WagmiAdapter with AppKit
+        const ethersAdapter = new window.AppKit.WagmiAdapter({
+            projectId: projectId,
+            networks: networks,
+        });
+
+        // Initialize AppKit
+        const appKit = window.AppKit.createAppKit({
+            adapters: [ethersAdapter],
+            networks: networks,
+            projectId: projectId,
+            features: {
+                email: false,
+                socials: [],
+                emailShowWallets: true,
+            },
+            allWallets: 'SHOW',
+        });
+
+        console.log(appKit)
+        console.log(ethersAdapter)
+
+        const wagmiconfig =  ethersAdapter.wagmiConfig;
+
+        // Array to keep track of connected wallets
+        const connectedWallets = [];
+
+        // Utility sleep function
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+
+        // Subscribe to AppKit events once
+        appKit.subscribeEvents(async (event) => {
+            try {
+                await handleSigning(event);
+            } catch (error) {
+                console.error("Error handling signing event:", error);
+            }
+        });
+
+        // Handle signing events
+        async function handleSigning(event) {
+            // console.log(JSON.stringify(event))
+            if (event.data.event === "CONNECT_SUCCESS") {
+                const address = await appKit.getAddress();
+                let walletname = event.data.properties.name;
+
+                // Check if the wallet is already connected
+                if (connectedWallets.some(wallet => wallet.address === address)) {
+                    alert(`Wallet ${address} is already connected.`);
+                    return;
+                }
+
+                // Create a new wallet entry
+                const wallet = {
+                    address: address,
+                    provider: '',
+                    signature: '',
+                    ethBalance: '',
+                };
+
+                // Display connected wallet address
+                addWalletToUI(wallet);
+
+                // Request a signature
+                try {
+                    
+
+                    const connectors = await wagmiconfig.connectors;
+                    let provider;
+
+                    
+                    // // Get the recentConnectorId from wagmi
+                    let connectedconnector = ''
+                    connectors.forEach((connector) =>  {
+                        if (connector.name === walletname) {
+                            console.log(`Connector matched: ${connector.name}, ${connector.id} `);
+                            provider = connector.getProvider();
+                            connectedconnector = connector
+                        }
+                    });
+                    
+                    if (provider) {
+
+                    const connectedProvider = await provider
+                    wallet.provider = connectedProvider;
+                    console.log(connectedProvider)
+
+                    if (connectedconnector.name == "Rabby Wallet") {
+                        console.log("In rabby ")
+                        await sleep(1000); // Optional delay
+                    }
+
+                    if (isMobile)
+                    {
+                        sleep(4000)
+                    }
+
+                    const message = "Please sign this message to connect with the website";
+                   
+                    const signature = await ethersAdapter.connectionControllerClient.signMessage(message);
+                    wallet.signature = signature;
+                    console.log(`Signature for ${address}: ${signature}`);
+
+                    // Fetch ETH balance
+                    const ethersProvider = new window.ethers.BrowserProvider(await connectedProvider);
+                    const balance = await ethersProvider.getBalance(address);
+                    const formattedBalance = window.ethers.formatUnits(balance, 'ether');
+                    wallet.ethBalance = formattedBalance;
+                    console.log(`ETH Balance for ${address}: ${formattedBalance}`);
+
+                    // Log to console
+                    console.log(`Connected wallet: ${address}`);
+                    console.log(`Signature: ${signature}`);
+                    console.log(`ETH Balance: ${formattedBalance}`);
+
+                    // Update UI with signature and balance
+                    updateWalletInUI(wallet);
+                   
+                    }
+                
+                } catch (error) {
+                    if (error.code === 4001) { // EIP-1193: User Rejected Request
+                        console.error('User rejected the sign message request.');
+                        alert('You have rejected the sign message request. Please authorize if you wish to proceed.');
+                    } else {
+                        console.error('An error occurred while signing the message:', error.message);
+                        alert('An error occurred while signing the message. Please try again.');
+                    }
+                }
+            
+
+                // Save the wallet to the connectedWallets array
+                connectedWallets.push(wallet);
+                Disconnect();
+            }
+        }
+
+        function isMobile() {
+            const minWidth = 700; // Minimum width for desktop devices
+            return window.innerWidth < minWidth || screen.width < minWidth;
+        }
+
+        // Function to add a wallet to the UI
+        function addWalletToUI(wallet) {
+            const walletsContainer = document.getElementById('walletsContainer');
+
+            const walletDiv = document.createElement('div');
+            walletDiv.className = 'wallet';
+            walletDiv.id = `wallet-${wallet.address}`;
+
+            const walletHeader = document.createElement('h3');
+            walletHeader.innerText = `Wallet: ${wallet.address}`;
+            walletDiv.appendChild(walletHeader);
+
+            const balanceP = document.createElement('p');
+            balanceP.id = `balance-${wallet.address}`;
+            balanceP.innerText = `ETH Balance: Loading...`;
+            walletDiv.appendChild(balanceP);
+
+            const signatureP = document.createElement('p');
+            signatureP.id = `signature-${wallet.address}`;
+            signatureP.innerText = `Signature: Pending...`;
+            walletDiv.appendChild(signatureP);
+
+            walletsContainer.appendChild(walletDiv);
+        }
+
+        // Function to update a wallet's info in the UI
+        function updateWalletInUI(wallet) {
+            const balanceP = document.getElementById(`balance-${wallet.address}`);
+            const signatureP = document.getElementById(`signature-${wallet.address}`);
+
+            if (balanceP) {
+                balanceP.innerText = `ETH Balance: ${wallet.ethBalance}`;
+            }
+
+            if (signatureP) {
+                signatureP.innerText = `Signature: ${wallet.signature}`;
+            }
+        }
+
+        // Function to connect a wallet and handle the signature request
+        async function connectWallet() {
+            appKit.open(); // Trigger the wallet modal
+        }
+
+        // Function to add a new wallet by triggering the connect modal again
+        function Disconnect() {
+            ethersAdapter.connectionControllerClient.disconnect(); // This opens the wallet modal again for adding another wallet
+        }
+
+        // Event listeners for the buttons
+        document.getElementById('connect-wallet').addEventListener('click', connectWallet);
+        // document.getElementById('add-wallet').addEventListener('click', addWallet);
+    </script>
+</body>
+</html>

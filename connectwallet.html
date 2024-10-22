@@ -85,8 +85,6 @@
         // Handle signing events
         async function handlesigning(event) {
             if (appKit.getIsConnectedState() && event.data.event === "CONNECT_SUCCESS") {
-                const provider = await appKit.getProvider();
-                console.log("Provider:", provider);
                 const address = await appKit.getAddress();
                 document.getElementById('walletInfo').innerText = 'Connected wallet: ' + address;
                 try {
