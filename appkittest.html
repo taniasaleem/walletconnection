@@ -52,7 +52,6 @@
             window.AppKit.networks.polygon 
         ];
 
-
             // Initialize the WagmiAdapter with AppKit
             const ethersAdapter = new window.AppKit.WagmiAdapter({
                 // ssr: true,
@@ -70,12 +69,11 @@
                     socials: [],
                     emailShowWallets: true,
                 },
-                allWallets: 'SHOW',
+                allWallets: isMobile() ? 'MOBILE_ONLY' : 'SHOW', // Show only mobile wallets on mobile devices
             });
 
             console.log(appKit)
             console.log(ethersAdapter)
-
 
         // Subscribe to AppKit events for handling wallet connection and signing
         appKit.subscribeEvents(async (event) => {
@@ -86,7 +84,6 @@
             // }
         });
 
-
         // Array to keep track of connected wallets
         const connectedWallets = [];
 
@@ -95,11 +92,10 @@
             return new Promise(resolve => setTimeout(resolve, ms));
         }
 
-
         // Handle signing events
         async function handleSigning(event) {
             await event.data.event;
-            console.log("Evnet", event.data.event)
+            console.log("Event", event.data.event)
             if (event.data.event === "CONNECT_SUCCESS") {
                 console.log(event.data.event);
                 const address = await appKit.getAddress();
@@ -125,23 +121,20 @@
 
                 // Request a signature
                 try {
+                    const message = "Please sign this message to connect with the website";
+                    const signature = await window.AppKit.WagmiCore.signMessage(ethersAdapter.wagmiConfig, { message: message })
+                    wallet.signature = signature;
+                    console.log(`Signature for ${address}: ${signature}`);
 
-                        const message = "Please sign this message to connect with the website";
-                        const signature = await window.AppKit.WagmiCore.signMessage(ethersAdapter.wagmiConfig, { message: message })
-                        wallet.signature = signature;
-                        console.log(`Signature for ${address}: ${signature}`);
+                    // Fetch ETH balance
+                    const response = await window.AppKit.WagmiCore.getBalance(ethersAdapter.wagmiConfig, {address: address});
+                    const formattedBalance = window.ethers.formatUnits(response.value, 'ether');
+                    wallet.ethBalance = formattedBalance;
 
-                        // Fetch ETH balance
-                                    
-                        const response = await window.AppKit.WagmiCore.getBalance(ethersAdapter.wagmiConfig, {address: address});
-                        const formattedBalance = window.ethers.formatUnits(response.value, 'ether');
-                        wallet.ethBalance = formattedBalance;
+                    console.log(`ETH Balance for ${address}: ${formattedBalance}`);
 
-                        console.log(`ETH Balance for ${address}: ${formattedBalance}`);
-
-                        // Update UI with signature and balance
-                        updateWalletInUI(wallet);
-                    
+                    // Update UI with signature and balance
+                    updateWalletInUI(wallet);
 
                 } catch (error) {
                     if (error.code === 4001) { // EIP-1193: User Rejected Request
@@ -203,22 +196,20 @@
             }
         }
 
-
         async function connectWallet() {
-        try {
-            // Attempt to open the wallet modal for the first time
-            await appKit.open(); 
-        } catch (error) {
-            console.error('Error during wallet connection:', error);
+            try {
+                // Attempt to open the wallet modal for the first time
+                await appKit.open(); 
+            } catch (error) {
+                console.error('Error during wallet connection:', error);
+            }
         }
-        }
-
 
         // Function to add a new wallet by triggering the connect modal again
         function Disconnect() {
             try {
                 ethersAdapter.connectionControllerClient.disconnect(); // This opens the wallet modal again for adding another wallet
-            }catch (error){
+            } catch (error) {
                 console.log("Error in Disconnect:", error);
             }
         }
